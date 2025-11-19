@@ -111,25 +111,42 @@ def draw_light(screen, t):
 def run_menu():
     global state
 
-    # Crear ventana ANTES de cargar imágenes
-    screen = pygame.display.set_mode((900, 600))
+    WIDTH, HEIGHT = 900, 600
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Car and Gun - Main Menu")
 
-    # Cargar sprites AHORA sí funciona
+    # -------- CARGA DE IMÁGENES --------
+    background = pygame.image.load("fondo.png").convert()
+    background = pygame.transform.scale(background, (WIDTH, HEIGHT))
+
+    spotlight = pygame.image.load("spotlight.png").convert_alpha()
+    spotlight = pygame.transform.scale(spotlight, (600, 280))
+    spotlight_rect = spotlight.get_rect(center=(WIDTH // 2, 150))
+
+    title_img = pygame.image.load("title.png").convert_alpha()
+    title_img = pygame.transform.scale(title_img, (600, 150))
+    title_rect = title_img.get_rect(center=(WIDTH // 2, 70))
+
     sprite_sheet = pygame.image.load("SpriteAuto.png").convert_alpha()
     auto_frames = load_auto_frames(sprite_sheet)
 
+    # -------- CONFIGURACIÓN DEL AUTO --------
     auto_frame_index = 0
     auto_frame_time = 0
+    AUTO_Y = 260  # posición vertical del auto
 
+    # -------- BOTONES CENTRADOS --------
+    button_start.rect.center = (WIDTH // 2, 360)
+    button_settings.rect.center = (WIDTH // 2, 440)
+    button_exit.rect.center = (WIDTH // 2, 520)
+
+    clock = pygame.time.Clock()
     running = True
-    t = 0
 
     while running and state == MENU:
         dt = clock.tick(60) / 1000
-        t += dt
 
-        # EVENTOS
+        # EVENTOS -----------------------------------
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -142,29 +159,32 @@ def run_menu():
                 pygame.quit()
                 sys.exit()
 
-        # Fondo
-        draw_hangar(screen)
-        draw_light(screen, t)
+        # FONDO -------------------------------------
+        screen.blit(background, (0, 0))
 
-        # Título
-        title = title_font.render("CAR AND GUN", True, YELLOW_LIGHT)
-        screen.blit(title, (60, 40))
+        # SPOTLIGHT ---------------------------------
+        screen.blit(spotlight, spotlight_rect)
 
-        # Animación auto
+        # TÍTULO ------------------------------------
+        screen.blit(title_img, title_rect)
+
+        # AUTO (ANIMACIÓN) --------------------------
         auto_frame_time += dt
-        if auto_frame_time >= 0.10:
+        if auto_frame_time >= 0.12:
             auto_frame_index = (auto_frame_index + 1) % len(auto_frames)
             auto_frame_time = 0
 
         auto_img = auto_frames[auto_frame_index]
-        screen.blit(auto_img, (150, 260))
+        auto_rect = auto_img.get_rect(center=(WIDTH // 2, AUTO_Y))
+        screen.blit(auto_img, auto_rect)
 
-        # Botones
+        # BOTONES -----------------------------------
         button_start.draw(screen)
         button_settings.draw(screen)
         button_exit.draw(screen)
 
         pygame.display.flip()
+
 
 # ------------------- MENÚ PRINCIPAL (ESTILO METAL SLUG) -------------------
 def run_menu():
