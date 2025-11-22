@@ -1,321 +1,284 @@
-# Proyecto final corregido - menú estilo "Metal Slug" (encuadre 600x400 a la izquierda, UI a la derecha)
 import pygame
-import sys
-import os
-import json
 import math
+import random
 
-# -------------------- CONFIG INICIAL --------------------
-os.environ["SDL_VIDEO_CENTERED"] = "1"
+# =====================================
+#          CONFIGURACIÓN
+# =====================================
+WIDTH, HEIGHT = 1000, 600
+FPS = 60
+ENEMY_SPAWN_RATE = 3500  # Milisegundos entre aparición de enemigos
+
+# Colores
+GRAY = (120, 120, 120)
+GREEN = (0, 200, 0)  # Color de respaldo si la imagen no carga
+YELLOW = (255, 220, 0)
+RED = (255, 80, 80)
+BACKGROUND_COLOR = (20, 20, 20)
+
 pygame.init()
-
-CONFIG_FILE = "config.json"
-default_config = {
-    "controls": {"left": "a", "right": "d", "jump": "space"},
-    "screen_size": [900, 600]
-}
-
-if not os.path.exists(CONFIG_FILE):
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(default_config, f, indent=4)
-with open(CONFIG_FILE, "r") as f:
-    config = json.load(f)
-
-def save_config():
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(config, f, indent=4)
-
-# -------------------- CONSTANTES --------------------
-ENC_W, ENC_H = 600, 400   # encuadre (left art area)
-WIDTH, HEIGHT = config.get("screen_size", [900, 600])
-WHITE = (255,255,255)
-BLACK = (0,0,0)
-GRAY_DARK = (40,40,40)
-GRAY_METAL = (80,80,80)
-YELLOW = (255,230,120)
-
-font = pygame.font.SysFont("impact", 32)
-small_font = pygame.font.SysFont("impact", 20)
-title_font = pygame.font.SysFont("impact", 64)
-
-# -------------------- ESTADOS --------------------
-MENU = "menu"
-SETTINGS = "settings"
-CONTROLS_SETTINGS = "controls_settings"
-SIZE_SETTINGS = "size_settings"
-GAME = "game"
-state = MENU
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Run & Gun Vehicular")
 clock = pygame.time.Clock()
 
-# -------------------- BOTÓN SIMPLE --------------------
-class Button:
-    def __init__(self, text, rect):
-        self.text = text
-        self.rect = pygame.Rect(rect)
-    def draw(self, surf):
-        m = pygame.mouse.get_pos()
-        if self.rect.collidepoint(m):
-            pygame.draw.rect(surf, (140,140,140), self.rect, border_radius=6)
+# --- Carga de Sprites del Coche ---
+try:
+    SPRITE_SHEET_IMAGE = pygame.image.load('image/SpriteAuto.png').convert_alpha()
+except pygame.error as e:
+    print(f"Advertencia: No se pudo cargar 'image/SpriteAuto.png'. Usando color de respaldo. Error: {e}")
+    SPRITE_SHEET_IMAGE = pygame.Surface((192, 192), pygame.SRCALPHA)
+    SPRITE_SHEET_IMAGE.fill(GREEN)
+
+# Dimensiones y margen entre fotogramas del coche
+FRAME_WIDTH = 125
+FRAME_HEIGHT = 80
+MARGIN = 1  # Ajusta si hay espacio entre fotogramas
+
+excluded_frames = [9, 10, 11]  # Índices de fotogramas a excluir
+
+CAR_ANIMATION_FRAMES = []
+
+for row in range(4):
+    for col in range(3):
+        frame_index = row * 3 + col
+        if frame_index in excluded_frames:
+            print(f"Excluyendo fotograma {frame_index}")
+            continue
+        x = col * (FRAME_WIDTH + MARGIN)
+        y = row * (FRAME_HEIGHT + MARGIN)
+        frame_rect = pygame.Rect(x, y, FRAME_WIDTH, FRAME_HEIGHT)
+        frame_image = SPRITE_SHEET_IMAGE.subsurface(frame_rect).copy()
+        CAR_ANIMATION_FRAMES.append(frame_image)
+
+print(f"Total fotogramas cargados: {len(CAR_ANIMATION_FRAMES)}")
+
+# --- Carga del sprite sheet de la torreta 24 posiciones ---
+try:
+    TURRET_SPRITESHEET = pygame.image.load('image/turret_24.png').convert_alpha()
+    print("TURRET_SPRITESHEET cargado con éxito.")
+except pygame.error as e:
+    print(f"Advertencia: No se pudo cargar 'image/turret_24.png'. Usando superficie de respaldo. Error: {e}")
+    TURRET_SPRITESHEET = pygame.Surface((512, 192), pygame.SRCALPHA)
+    TURRET_SPRITESHEET.fill((0, 0, 0, 0))  # Transparente
+
+# Obtener tamaño real de la imagen para evitar errores
+sheet_width = TURRET_SPRITESHEET.get_width()
+sheet_height = TURRET_SPRITESHEET.get_height()
+
+# Definir filas y columnas
+TURRET_COLS = 8
+TURRET_ROWS = 3
+
+# Calcular tamaño de cada fotograma
+TURRET_FRAME_WIDTH = sheet_width // TURRET_COLS
+TURRET_FRAME_HEIGHT = sheet_height // TURRET_ROWS
+
+# Extraer fotogramas
+TURRET_FRAMES = []
+for row in range(TURRET_ROWS):
+    for col in range(TURRET_COLS):
+        x = col * TURRET_FRAME_WIDTH
+        y = row * TURRET_FRAME_HEIGHT
+        frame_rect = pygame.Rect(x, y, TURRET_FRAME_WIDTH, TURRET_FRAME_HEIGHT)
+        frame_image = TURRET_SPRITESHEET.subsurface(frame_rect).copy()
+        TURRET_FRAMES.append(frame_image)
+
+print(f"Total fotogramas torreta extraídos: {len(TURRET_FRAMES)}")
+
+# Clases del juego
+
+class Vehicle(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.animation_frames = CAR_ANIMATION_FRAMES
+        self.current_frame_index = 0
+        self.image = self.animation_frames[self.current_frame_index]
+        self.rect = self.image.get_rect(midbottom=(x, y))
+
+        self.speed = 5
+        self.vel_x = 0
+
+        self.animation_speed = 0.1  # segundos por fotograma
+        self.last_frame_update = pygame.time.get_ticks()
+
+    def update(self, keys):
+        self.vel_x = 0
+        if keys[pygame.K_a]:
+            self.vel_x = -self.speed
+        if keys[pygame.K_d]:
+            self.vel_x = self.speed
+
+        self.rect.x += self.vel_x
+
+        # Limitar dentro de la pantalla
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+
+        # Animación solo si se mueve
+        now = pygame.time.get_ticks()
+        if self.vel_x != 0 and now - self.last_frame_update > self.animation_speed * 1000:
+            self.current_frame_index = (self.current_frame_index + 1) % len(self.animation_frames)
+            self.image = self.animation_frames[self.current_frame_index]
+            self.last_frame_update = now
+        elif self.vel_x == 0:
+            self.current_frame_index = 0
+            self.image = self.animation_frames[self.current_frame_index]
+
+class Turret(pygame.sprite.Sprite):
+    def __init__(self, vehicle, bullets_group, all_sprites_group):
+        super().__init__()
+
+        self.frames = TURRET_FRAMES
+        self.num_frames = len(self.frames)
+        self.vehicle = vehicle
+        self.bullets_group = bullets_group
+        self.all_sprites_group = all_sprites_group
+
+        self.image = self.frames[0]
+        self.rect = self.image.get_rect(center=vehicle.rect.center)
+
+        self.cooldown = 250  # ms
+        self.last_shot = pygame.time.get_ticks()
+
+    def update(self, mouse_pos):
+        print("Actualizando torreta en posición fija")
+        fixed_center = (self.vehicle.rect.centerx, self.vehicle.rect.top - 10)
+
+        mx, my = mouse_pos
+        dx = mx - fixed_center[0]
+        dy = my - fixed_center[1]
+
+        if dx == 0 and dy == 0:
+            angle = 0
         else:
-            pygame.draw.rect(surf, GRAY_METAL, self.rect, border_radius=6)
-        pygame.draw.rect(surf, WHITE, self.rect, 3, border_radius=6)
-        lab = font.render(self.text, True, WHITE)
-        surf.blit(lab, lab.get_rect(center=self.rect.center))
-    def clicked(self, event):
-        return event.type==pygame.MOUSEBUTTONDOWN and event.button==1 and self.rect.collidepoint(event.pos)
+            angle = math.degrees(math.atan2(-dy, dx)) % 360
 
-# -------------------- UTIL HELPERS --------------------
-def load_scaled_image(path, size, colorkey_alpha=True):
-    try:
-        img = pygame.image.load(path)
-        img = pygame.transform.smoothscale(img, size)
-        if colorkey_alpha:
-            return img.convert_alpha()
-        return img.convert()
-    except Exception:
-        s = pygame.Surface(size)
-        s.fill(GRAY_DARK)
-        return s
+        frame_index = int((angle / 360) * self.num_frames) % self.num_frames
 
-# -------------------- MENÚ PRINCIPAL --------------------
-def run_menu():
-    global state, WIDTH, HEIGHT
-    # ensure window size from config
-    WIDTH, HEIGHT = config.get("screen_size", [900,600])
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Car and Gun - Menu")
+        self.image = self.frames[frame_index]
+        self.rect = self.image.get_rect(center=fixed_center)
+        
+    def shoot(self, mouse_pos):
+        now = pygame.time.get_ticks()
+        if now - self.last_shot >= self.cooldown:
+            bullet = Bullet(self.rect.centerx, self.rect.centery, mouse_pos, self.bullets_group)
+            self.all_sprites_group.add(bullet)
+            self.last_shot = now
 
-    # encuadre pos (left area)
-    enc_x = 40
-    enc_y = (HEIGHT - ENC_H) // 2
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, x, y, mouse_pos, group):
+        super().__init__()
+        self.image = pygame.Surface((8, 8), pygame.SRCALPHA)
+        self.image.fill(YELLOW)
+        self.rect = self.image.get_rect(center=(x, y))
 
-    # cargar assets del encuadre (fondo y title)
-    background = load_scaled_image("fondo.png", (ENC_W, ENC_H))
-    title_img = None
-    try:
-        tmp = pygame.image.load("title.png")
-        # scale title to fit inside encuadre width with margin
-        max_w = ENC_W - 40
-        if tmp.get_width() > max_w:
-            new_h = int(max_w * tmp.get_height() / tmp.get_width())
-            title_img = pygame.transform.smoothscale(tmp, (max_w, new_h)).convert_alpha()
-        else:
-            title_img = tmp.convert_alpha()
-    except Exception:
-        title_img = title_font.render("CAR AND GUN", True, YELLOW)
+        mx, my = mouse_pos
+        dx = mx - x
+        dy = my - y
+        ang = math.atan2(dy, dx)
 
-    # botones UI (right column)
-    btn_w, btn_h = 220, 56
-    right_x = enc_x + ENC_W + 40
-    start_y = enc_y + 100
-    btn_gap = 24
-    b_start = Button("LAUNCH", (right_x, start_y, btn_w, btn_h))
-    b_settings = Button("SETTINGS", (right_x, start_y + (btn_h+btn_gap), btn_w, btn_h))
-    b_exit = Button("EXIT", (right_x, start_y + 2*(btn_h+btn_gap), btn_w, btn_h))
+        self.speed = 14
+        self.vel_x = math.cos(ang) * self.speed
+        self.vel_y = math.sin(ang) * self.speed
 
+        group.add(self)
+
+    def update(self):
+        self.rect.x += self.vel_x
+        self.rect.y += self.vel_y
+
+        if not screen.get_rect().colliderect(self.rect):
+            self.kill()
+
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((50, 50))
+        self.image.fill(RED)
+        self.rect = self.image.get_rect(midbottom=(x, y))
+
+        self.hp = 3
+        self.speed = 2
+        self.direction = 1
+
+    def update(self):
+        self.rect.x += self.speed * self.direction
+
+        if self.rect.left < 100 or self.rect.right > WIDTH - 100:
+            self.direction *= -1
+            if self.rect.left < 100:
+                self.rect.left = 100
+            if self.rect.right > WIDTH - 100:
+                self.rect.right = WIDTH - 100
+
+    def take_damage(self):
+        self.hp -= 1
+        if self.hp <= 0:
+            self.kill()
+
+def main():
     running = True
-    while running and state == MENU:
-        dt = clock.tick(60) / 1000.0
+
+    all_sprites = pygame.sprite.Group()
+    bullets = pygame.sprite.Group()
+    enemies = pygame.sprite.Group()
+
+    vehicle = Vehicle(WIDTH // 4, HEIGHT - 20)
+    all_sprites.add(vehicle)
+
+    turret = Turret(vehicle, bullets, all_sprites)
+    all_sprites.add(turret)
+
+    enemy1 = Enemy(WIDTH - 100, HEIGHT - 20)
+    enemies.add(enemy1)
+    all_sprites.add(enemy1)
+
+    last_enemy_spawn = pygame.time.get_ticks()
+
+    while running:
+        dt = clock.tick(FPS)
+
         for event in pygame.event.get():
-            if event.type==pygame.QUIT:
-                pygame.quit(); sys.exit()
-            if b_start.clicked(event):
-                state = GAME
-            if b_settings.clicked(event):
-                state = SETTINGS
-            if b_exit.clicked(event):
-                pygame.quit(); sys.exit()
+            if event.type == pygame.QUIT:
+                running = False
 
-        # Draw full background (dark)
-        screen.fill(BLACK)
-        # Draw encuadre (left) and title inside it
-        screen.blit(background, (enc_x, enc_y))
-        # title centered near top of encuadre
-        trect = title_img.get_rect(center=(enc_x + ENC_W//2, enc_y + 48))
-        screen.blit(title_img, trect)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    turret.shoot(pygame.mouse.get_pos())
 
-        # ground / floor inside encuadre bottom (visual)
-        floor_y = enc_y + ENC_H - 40
-        pygame.draw.rect(screen, (30,30,30), (enc_x, floor_y, ENC_W, 40))
-        # subtle metallic stripes on floor
-        for x in range(enc_x, enc_x+ENC_W, 40):
-            pygame.draw.line(screen, (50,50,50), (x, floor_y), (x, floor_y+40), 1)
+        now = pygame.time.get_ticks()
+        if now - last_enemy_spawn >= ENEMY_SPAWN_RATE:
+            side = random.choice(["left", "right"])
+            if side == "left":
+                spawn_x = random.randint(0, WIDTH // 4)
+            else:
+                spawn_x = random.randint(WIDTH * 3 // 4, WIDTH)
 
-        # Draw buttons on right
-        b_start.draw(screen); b_settings.draw(screen); b_exit.draw(screen)
+            new_enemy = Enemy(spawn_x, HEIGHT - 20)
+            enemies.add(new_enemy)
+            all_sprites.add(new_enemy)
 
-        pygame.display.flip()
-
-# -------------------- AJUSTES --------------------
-def run_settings():
-    global state, WIDTH, HEIGHT
-    WIDTH, HEIGHT = config.get("screen_size", [900,600])
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Settings")
-
-    # buttons inside main window (right side)
-    enc_x = 40
-    enc_y = (HEIGHT - ENC_H) // 2
-    right_x = enc_x + ENC_W + 40
-    btn_w, btn_h = 220, 56
-    y0 = enc_y + 80
-    b_controls = Button("CONTROLS", (right_x, y0, btn_w, btn_h))
-    b_size = Button("RESOLUTION", (right_x, y0+80, btn_w, btn_h))
-    b_back = Button("BACK", (right_x, y0+160, btn_w, btn_h))
-
-    while state == SETTINGS:
-        for event in pygame.event.get():
-            if event.type==pygame.QUIT:
-                pygame.quit(); sys.exit()
-            if b_controls.clicked(event):
-                state = CONTROLS_SETTINGS
-            if b_size.clicked(event):
-                state = SIZE_SETTINGS
-            if b_back.clicked(event):
-                state = MENU
-
-        screen.fill(BLACK)
-        # draw encuadre left as reference so layout stays consistent
-        bg = load_scaled_image("fondo.png", (ENC_W, ENC_H))
-        screen.blit(bg, (enc_x, enc_y))
-        # header
-        screen.blit(title_font.render("SETTINGS", True, YELLOW), (right_x, enc_y))
-
-        b_controls.draw(screen); b_size.draw(screen); b_back.draw(screen)
-        pygame.display.flip(); clock.tick(60)
-
-# -------------------- CONTROLES --------------------
-def run_controls_settings():
-    global state
-    WIDTH, HEIGHT = config.get("screen_size", [900,600])
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Controls")
-
-    enc_x = 40
-    enc_y = (HEIGHT - ENC_H) // 2
-    back = Button("BACK", (enc_x+ENC_W+40, enc_y+220, 220, 56))
-
-    waiting = None
-    msg = ""
-    while state == CONTROLS_SETTINGS:
-        for event in pygame.event.get():
-            if event.type==pygame.QUIT:
-                pygame.quit(); sys.exit()
-            if event.type==pygame.MOUSEBUTTONDOWN and event.button==1:
-                if back.clicked(event):
-                    save_config(); state = SETTINGS
-
-        screen.fill(BLACK)
-        screen.blit(load_scaled_image("fondo.png", (ENC_W, ENC_H)), (enc_x, enc_y))
-        lbl = small_font.render("Edit controls in config.json", True, WHITE)
-        screen.blit(lbl, (enc_x+ENC_W+40, enc_y+40))
-        back.draw(screen)
-        pygame.display.flip(); clock.tick(60)
-
-
-def run_size_settings():
-    global state
-    WIDTH, HEIGHT = config.get("screen_size", [900,600])
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Resolution")
-
-    enc_x = 40
-    enc_y = (HEIGHT - ENC_H) // 2
-    right_x = enc_x + ENC_W + 40
-    opts = [((right_x, enc_y+40+i*70, 220, 56), label) for i,label in enumerate(["900x600","1280x720","1600x900"])]
-    buttons = [Button(l, r) for r,l in opts]
-    back = Button("BACK", (right_x, enc_y+240, 220, 56))
-
-    while state == SIZE_SETTINGS:
-        for event in pygame.event.get():
-            if event.type==pygame.QUIT:
-                pygame.quit(); sys.exit()
-            for i,(rect,label) in enumerate(opts):
-                btn = Button(label, rect)
-                if btn.clicked(event):
-                    size = list(map(int,label.split('x')))
-                    config["screen_size"] = size
-                    save_config()
-                   
-                    WIDTH, HEIGHT = size
-                    state = MENU
-            if back.clicked(event):
-                state = SETTINGS
-
-        screen.fill(BLACK)
-        screen.blit(load_scaled_image("fondo.png", (ENC_W, ENC_H)), (enc_x, enc_y))
-        for r,l in opts:
-            pygame.draw.rect(screen, GRAY_METAL, r, border_radius=6)
-            screen.blit(font.render(l, True, WHITE), pygame.Rect(r).move(30,12))
-        back.draw(screen)
-        pygame.display.flip(); clock.tick(60)
-
-# -------------------- JUEGO --------------------
-def run_game():
-    global state
-    WIDTH, HEIGHT = config.get("screen_size", [900,600])
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Game")
-
- 
-    player = pygame.Rect(100, 0, 36, 36)
-    enc_x = 40
-    enc_y = (HEIGHT - ENC_H) // 2
-    floor_y = enc_y + ENC_H - 40
-    player.bottom = floor_y
-
-    vel_y = 0
-    gravity = 0.6
-    speed_x = 3
-
-    running = True
-    while running and state == GAME:
-        for event in pygame.event.get():
-            if event.type==pygame.QUIT:
-                pygame.quit(); sys.exit()
-            if event.type==pygame.KEYDOWN and event.key==pygame.K_ESCAPE:
-                state = MENU
+            last_enemy_spawn = now
 
         keys = pygame.key.get_pressed()
-        if keys[pygame.key.key_code(config['controls']['left'])]: player.x -= speed_x
-        if keys[pygame.key.key_code(config['controls']['right'])]: player.x += speed_x
-        if keys[pygame.key.key_code(config['controls']['jump'])] and player.bottom>=floor_y:
-            vel_y = -10
 
-        vel_y += gravity
-        player.y += vel_y
-        if player.bottom >= floor_y:
-            player.bottom = floor_y
-            vel_y = 0
+        vehicle.update(keys)
+        turret.update(pygame.mouse.get_pos())
+        bullets.update()
+        enemies.update()
 
-        # clamp inside encuadre
-        if player.left < enc_x + 8: player.left = enc_x + 8
-        if player.right > enc_x + ENC_W - 8: player.right = enc_x + ENC_W - 8
+        hits = pygame.sprite.groupcollide(bullets, enemies, True, False)
+        for bullet_hit, enemy_list in hits.items():
+            for enemy in enemy_list:
+                enemy.take_damage()
 
-        # draw
-        screen.fill(BLACK)
-        # encuadre background
-        screen.blit(load_scaled_image("fondo.png", (ENC_W, ENC_H)), (enc_x, enc_y))
-        # floor
-        pygame.draw.rect(screen, (30,30,30), (enc_x, floor_y, ENC_W, 40))
-        # player
-        pygame.draw.rect(screen, (200,30,30), player)
+        screen.fill(BACKGROUND_COLOR)
+        all_sprites.draw(screen)
+        pygame.display.flip()
 
-        pygame.display.flip(); clock.tick(60)
+    pygame.quit()
 
-# -------------------- BUCLE PRINCIPAL --------------------
-if __name__ == '__main__':
-    # ensure starting state and apply saved size
-    state = MENU
-    WIDTH, HEIGHT = config.get("screen_size", [900,600])
-    while True:
-        if state == MENU:
-            run_menu()
-        elif state == SETTINGS:
-            run_settings()
-        elif state == CONTROLS_SETTINGS:
-            run_controls_settings()
-        elif state == SIZE_SETTINGS:
-            run_size_settings()
-        elif state == GAME:
-            run_game()
+if __name__ == "__main__":
+    main()
