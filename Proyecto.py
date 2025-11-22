@@ -2,6 +2,10 @@ import pygame
 import math
 import random
 
+# Importar los menús desde archivos separados
+from main_menu import MainMenu
+from settings import SettingsMenu
+
 # =====================================
 #          CONFIGURACIÓN
 # =====================================
@@ -42,7 +46,6 @@ for row in range(4):
     for col in range(3):
         frame_index = row * 3 + col
         if frame_index in excluded_frames:
-            print(f"Excluyendo fotograma {frame_index}")
             continue
         x = col * (FRAME_WIDTH + MARGIN)
         y = row * (FRAME_HEIGHT + MARGIN)
@@ -50,30 +53,23 @@ for row in range(4):
         frame_image = SPRITE_SHEET_IMAGE.subsurface(frame_rect).copy()
         CAR_ANIMATION_FRAMES.append(frame_image)
 
-print(f"Total fotogramas cargados: {len(CAR_ANIMATION_FRAMES)}")
-
 # --- Carga del sprite sheet de la torreta 24 posiciones ---
 try:
     TURRET_SPRITESHEET = pygame.image.load('image/turret_24.png').convert_alpha()
-    print("TURRET_SPRITESHEET cargado con éxito.")
 except pygame.error as e:
     print(f"Advertencia: No se pudo cargar 'image/turret_24.png'. Usando superficie de respaldo. Error: {e}")
     TURRET_SPRITESHEET = pygame.Surface((512, 192), pygame.SRCALPHA)
     TURRET_SPRITESHEET.fill((0, 0, 0, 0))  # Transparente
 
-# Obtener tamaño real de la imagen para evitar errores
 sheet_width = TURRET_SPRITESHEET.get_width()
 sheet_height = TURRET_SPRITESHEET.get_height()
 
-# Definir filas y columnas
 TURRET_COLS = 8
 TURRET_ROWS = 3
 
-# Calcular tamaño de cada fotograma
 TURRET_FRAME_WIDTH = sheet_width // TURRET_COLS
 TURRET_FRAME_HEIGHT = sheet_height // TURRET_ROWS
 
-# Extraer fotogramas
 TURRET_FRAMES = []
 for row in range(TURRET_ROWS):
     for col in range(TURRET_COLS):
@@ -82,8 +78,6 @@ for row in range(TURRET_ROWS):
         frame_rect = pygame.Rect(x, y, TURRET_FRAME_WIDTH, TURRET_FRAME_HEIGHT)
         frame_image = TURRET_SPRITESHEET.subsurface(frame_rect).copy()
         TURRET_FRAMES.append(frame_image)
-
-print(f"Total fotogramas torreta extraídos: {len(TURRET_FRAMES)}")
 
 # Clases del juego
 
@@ -102,21 +96,21 @@ class Vehicle(pygame.sprite.Sprite):
         self.last_frame_update = pygame.time.get_ticks()
 
     def update(self, keys):
+        global current_controls
+        
         self.vel_x = 0
-        if keys[pygame.K_a]:
+        if keys[current_controls['move_left']]:
             self.vel_x = -self.speed
-        if keys[pygame.K_d]:
+        if keys[current_controls['move_right']]:
             self.vel_x = self.speed
 
         self.rect.x += self.vel_x
 
-        # Limitar dentro de la pantalla
         if self.rect.left < 0:
             self.rect.left = 0
         if self.rect.right > WIDTH:
             self.rect.right = WIDTH
 
-        # Animación solo si se mueve
         now = pygame.time.get_ticks()
         if self.vel_x != 0 and now - self.last_frame_update > self.animation_speed * 1000:
             self.current_frame_index = (self.current_frame_index + 1) % len(self.animation_frames)
@@ -143,7 +137,6 @@ class Turret(pygame.sprite.Sprite):
         self.last_shot = pygame.time.get_ticks()
 
     def update(self, mouse_pos):
-        print("Actualizando torreta en posición fija")
         fixed_center = (self.vehicle.rect.centerx, self.vehicle.rect.top - 10)
 
         mx, my = mouse_pos
@@ -218,7 +211,7 @@ class Enemy(pygame.sprite.Sprite):
         if self.hp <= 0:
             self.kill()
 
-def main():
+def run_game(current_controls):
     running = True
 
     all_sprites = pygame.sprite.Group()
@@ -247,6 +240,13 @@ def main():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     turret.shoot(pygame.mouse.get_pos())
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    menu = SettingsMenu(screen, current_controls)
+                    updated_controls = menu.run()
+                    if updated_controls:
+                        current_controls.update(updated_controls)
 
         now = pygame.time.get_ticks()
         if now - last_enemy_spawn >= ENEMY_SPAWN_RATE:
@@ -277,6 +277,29 @@ def main():
         screen.fill(BACKGROUND_COLOR)
         all_sprites.draw(screen)
         pygame.display.flip()
+
+    pygame.quit()
+
+def main():
+    global current_controls
+    current_controls = {
+        'move_left': pygame.K_a,
+        'move_right': pygame.K_d,
+        'shoot': pygame.K_SPACE,
+    }
+
+    menu = MainMenu(screen)
+    while True:
+        choice = menu.run()
+        if choice == "salir":
+            break
+        elif choice == "ajustes":
+            settings_menu = SettingsMenu(screen, current_controls)
+            updated_controls = settings_menu.run()
+            if updated_controls:
+                current_controls.update(updated_controls)
+        elif choice == "jugar":
+            run_game(current_controls)
 
     pygame.quit()
 
