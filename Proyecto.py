@@ -18,6 +18,8 @@ GRAY = (120, 120, 120)
 GREEN = (0, 200, 0)  # Color de respaldo si la imagen no carga
 YELLOW = (255, 220, 0)
 RED = (255, 80, 80)
+
+COLOR_HIT = (255, 80, 80)
 BACKGROUND_COLOR = (20, 20, 20)
 
 pygame.init()
@@ -129,7 +131,6 @@ class Vehicle(pygame.sprite.Sprite):
 class Turret(pygame.sprite.Sprite):
     def __init__(self, vehicle, bullets_group, all_sprites_group):
         super().__init__()
-
         self.frames = TURRET_FRAMES
         self.num_frames = len(self.frames)
         self.vehicle = vehicle
@@ -140,24 +141,19 @@ class Turret(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center=vehicle.rect.center)
 
         self.cooldown = 250  # ms
-        self.last_shot = pygame.time.get_ticks()
+        self.last_shot = 0
+
 
     def update(self, mouse_pos):
         fixed_center = (self.vehicle.rect.centerx, self.vehicle.rect.top - 10)
 
-        mx, my = mouse_pos
-        dx = mx - fixed_center[0]
-        dy = my - fixed_center[1]
-
-        if dx == 0 and dy == 0:
-            angle = 0
-        else:
-            angle = math.degrees(math.atan2(-dy, dx)) % 360
+        dx, dy = mouse_pos[0] - fixed_center[0], mouse_pos[1] - fixed_center[1]
+        angle = math.degrees(math.atan2(-dy, dx)) % 360 if (dx or dy) else 0
 
         frame_index = int((angle / 360) * self.num_frames) % self.num_frames
-
         self.image = self.frames[frame_index]
         self.rect = self.image.get_rect(center=fixed_center)
+
         
     def shoot(self, mouse_pos):
         now = pygame.time.get_ticks()
@@ -166,23 +162,28 @@ class Turret(pygame.sprite.Sprite):
             self.all_sprites_group.add(bullet)
             self.last_shot = now
 
+
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, x, y, mouse_pos, group):
         super().__init__()
-        self.image = pygame.Surface((8, 8), pygame.SRCALPHA)
-        self.image.fill(YELLOW)
+        # 🔵 Visual más atractivo: círculo amarillo con borde
+        self.image = pygame.Surface((12, 12), pygame.SRCALPHA)
+        pygame.draw.circle(self.image, YELLOW, (6, 6), 6)
+        pygame.draw.circle(self.image, (255, 200, 0), (6, 6), 6, 2)
         self.rect = self.image.get_rect(center=(x, y))
 
-        mx, my = mouse_pos
-        dx = mx - x
-        dy = my - y
+        dx, dy = mouse_pos[0] - x, mouse_pos[1] - y
         ang = math.atan2(dy, dx)
 
         self.speed = 14
         self.vel_x = math.cos(ang) * self.speed
         self.vel_y = math.sin(ang) * self.speed
 
+        self.lifetime = 2000  # ms
+        self.spawn_time = pygame.time.get_ticks()
+
         group.add(self)
+        
 
     def update(self):
         self.rect.x += self.vel_x
@@ -191,16 +192,30 @@ class Bullet(pygame.sprite.Sprite):
         if not screen.get_rect().colliderect(self.rect):
             self.kill()
 
+#hacer el efecto para cuando el enemigo recibe daño
+def lerp_color(c1, c2, t):
+    """Interpolación lineal entre dos colores (c1 → c2) según factor t [0..1]."""
+    return (
+        int(c1[0] + (c2[0] - c1[0]) * t),
+        int(c1[1] + (c2[1] - c1[1]) * t),
+        int(c1[2] + (c2[2] - c1[2]) * t),
+    )
+
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
         self.image = pygame.Surface((50, 50))
-        self.image.fill(RED)
+        self.image.fill(GRAY)
         self.rect = self.image.get_rect(midbottom=(x, y))
 
         self.hp = 3
         self.speed = 2
         self.direction = 1
+
+      #Visualizador de daño
+        self.is_hit = False
+        self.hit_duration = 450  #Duracion del efecto de daño
+        self.hit_time = 0
 
     def update(self):
         self.rect.x += self.speed * self.direction
@@ -211,9 +226,28 @@ class Enemy(pygame.sprite.Sprite):
                 self.rect.left = 100
             if self.rect.right > WIDTH - 100:
                 self.rect.right = WIDTH - 100
+                
+        if self.is_hit:
+            elapsed = pygame.time.get_ticks() - self.hit_time
+            if elapsed < self.hit_duration:
+                t = elapsed / self.hit_duration  # progreso [0..1]
+                new_color = lerp_color(COLOR_HIT, GRAY, t)
+                self.image.fill(new_color)
+            else:
+                self.image.fill(GRAY)
+                self.is_hit = False
+
+
+
 
     def take_damage(self):
         self.hp -= 1
+    
+        self.is_hit = True
+        self.hit_time = pygame.time.get_ticks()
+        self.image.fill(COLOR_HIT)
+
+
         if self.hp <= 0:
             self.kill()
 
@@ -339,8 +373,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
-    
-    
-    
-    
