@@ -102,6 +102,10 @@ class Vehicle(pygame.sprite.Sprite):
 
         self.animation_speed = 0.1  # segundos por fotograma
         self.last_frame_update = pygame.time.get_ticks()
+        
+        self.max_hp = 4
+        self.hp = self.max_hp
+
 
     def update(self, keys):
         global current_controls
@@ -127,6 +131,86 @@ class Vehicle(pygame.sprite.Sprite):
         elif self.vel_x == 0:
             self.current_frame_index = 0
             self.image = self.animation_frames[self.current_frame_index]
+            
+    #Funcion para restar vida
+    def take_damage(self):
+        self.hp -= 1
+        if self.hp <= 0:
+            return True  #El vehiculo se destrozo
+        return False
+
+
+class HealthBar(pygame.sprite.Sprite):
+    def __init__(self, x, y, max_hp):
+        super().__init__()
+        self.max_hp = max_hp
+        self.hp = max_hp
+
+        # Dimensiones de la barra
+        self.width = 120
+        self.height = 25
+
+        # Colores según la vida
+        self.colors = [
+            (0, 255, 0),    # Verde → 4 vidas
+            (255, 165, 0),  # Naranja → 3 vidas
+            (255, 255, 0),  # Amarillo → 2 vidas
+            (255, 0, 0)     # Rojo → 1 vida
+        ]
+        #Luego de la ultima vida, al perder todas se va a la pantalla de game over
+
+        # Imagen inicial
+        self.image = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.update(self.hp)
+
+    def update(self, hp):
+        self.hp = hp
+
+        #Limitar valores
+        if self.hp < 0:
+            self.hp = 0
+        if self.hp > self.max_hp:
+            self.hp = self.max_hp
+
+        #Calcular cuanta vida tiene el vehiculo
+        ratio = self.hp / self.max_hp
+
+        #color según la vida (se crean sprites en el mismo programa) 
+        if ratio > 0.75:
+            color = self.colors[0]  # verde
+        elif ratio > 0.5:
+            color = self.colors[1]  # naranja
+        elif ratio > 0.25:
+            color = self.colors[2]  # amarillo
+        else:
+            color = self.colors[3]  # rojo
+
+        # Dibujar barra
+        self.image.fill((0, 0, 0, 0))  # limpiar transparente
+        pygame.draw.rect(self.image, (50, 50, 50), (0, 0, self.width, self.height), border_radius=5)  # fondo gris
+        pygame.draw.rect(self.image, color, (0, 0, int(self.width * ratio), self.height), border_radius=5)  # vida
+        pygame.draw.rect(self.image, (255, 255, 255), (0, 0, self.width, self.height), 2, border_radius=5)  # borde blanco
+
+
+
+
+
+def game_over_screen():
+    """Pantalla de Game Over"""
+    font = pygame.font.SysFont(None, 80)
+    text = font.render("GAME OVER", True, (255, 0, 0))
+    rect = text.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+
+    screen.fill((0, 0, 0))
+    screen.blit(text, rect)
+    pygame.display.flip()
+
+    # Esperar unos segundos antes de salir
+    pygame.time.delay(3000)
+    pygame.quit()
+    sys.exit()
+
 
 class Turret(pygame.sprite.Sprite):
     def __init__(self, vehicle, bullets_group, all_sprites_group):
@@ -214,7 +298,7 @@ class Enemy(pygame.sprite.Sprite):
 
       #Visualizador de daño
         self.is_hit = False
-        self.hit_duration = 450  #Duracion del efecto de daño
+        self.hit_duration = 350  #Duracion del efecto de daño
         self.hit_time = 0
 
     def update(self):
@@ -230,7 +314,7 @@ class Enemy(pygame.sprite.Sprite):
         if self.is_hit:
             elapsed = pygame.time.get_ticks() - self.hit_time
             if elapsed < self.hit_duration:
-                t = elapsed / self.hit_duration  # progreso [0..1]
+                t = elapsed / self.hit_duration
                 new_color = lerp_color(COLOR_HIT, GRAY, t)
                 self.image.fill(new_color)
             else:
@@ -258,11 +342,16 @@ def run_game(current_controls):
     bullets = pygame.sprite.Group()
     enemies = pygame.sprite.Group()
 
-    vehicle = Vehicle(WIDTH // 4, HEIGHT - 20)
+    vehicle = Vehicle(WIDTH//2, HEIGHT- 20)
     all_sprites.add(vehicle)
 
     turret = Turret(vehicle, bullets, all_sprites)
     all_sprites.add(turret)
+
+    health_bar = HealthBar(10, 10, vehicle.max_hp)
+    all_sprites.add(health_bar)
+    health_bar.update(vehicle.hp)
+
 
     enemy1 = Enemy(WIDTH - 100, HEIGHT - 20)
     enemies.add(enemy1)
@@ -308,12 +397,17 @@ def run_game(current_controls):
         turret.update(pygame.mouse.get_pos())
         bullets.update()
         enemies.update()
+        health_bar.update(vehicle.hp)
         
     
         
         #Colisión entre vehículo y enemigos
         collisions = pygame.sprite.spritecollide(vehicle, enemies, False)
         for enemy in collisions:
+            if vehicle.take_damage(): #generacion de la pantalla de game over
+                game_over_screen() 
+                health_bar.update(vehicle.hp)#Conectar la barra con la vida actual del vehiculo
+
             
             # Calcular dirección de retroceso
             # si el enemigo choca de un lado,el vehiculo retrocede en direccion opuesta,y viceversa
