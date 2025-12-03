@@ -4,9 +4,9 @@ Proyecto universitario desarrollado en **Python** utilizando **Pygame**, aplican
 El videojuego combina mecánicas de conducción y disparos,inspiido en el estilo arcade **Run And Gun** donde el jugador controla un vehículo armado para enfrentar obstáculos y enemigos con proyectiles.
 realizado como parte de la asignatura de Ingeniería Civil en Informática - Universidad de Los Lagos.
 Desarrollado por:
-[Gadhiell Camilo Chavez Bahamonde]
-[Benjamin Nicolas Alocilla Villegas]
-[Hector Victorino Tobar Estay]
+.[Gadhiell Camilo Chavez Bahamonde]
+.[Benjamin Nicolas Alocilla Villegas]
+.[Hector Victorino Tobar Estay]
 
 ---
 
@@ -34,4 +34,5 @@ Editor de codigo (VS Code, Pycharm, Vim, etc…,para ejecutar los archivos
 pip install pygame
 
 Ejecutar el juego desde el archivo ""Proyecto.py""
+
 
