@@ -1,0 +1,11 @@
+{
+    "controls": {
+        "left": "a",
+        "right": "d",
+        "jump": "space"
+    },
+    "screen_size": [
+        900,
+        600
+    ]
+}
