@@ -29,6 +29,9 @@ Desarrollado por:
 
 Instalación de dependencias:
 ```bash
+Editor de codigo (VS Code, Pycharm, Vim, etc…,para ejecutar los archivos
+
 pip install pygame
 
 Ejecutar el juego desde el archivo ""Proyecto.py""
+
