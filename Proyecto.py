@@ -194,8 +194,6 @@ class HealthBar(pygame.sprite.Sprite):
 
 
 
-
-
 def game_over_screen():
     """Pantalla de Game Over"""
     font = pygame.font.SysFont(None, 80)
@@ -208,8 +206,7 @@ def game_over_screen():
 
     # Esperar unos segundos antes de salir
     pygame.time.delay(3000)
-    pygame.quit()
-    sys.exit()
+    return
 
 
 class Turret(pygame.sprite.Sprite):
@@ -224,7 +221,7 @@ class Turret(pygame.sprite.Sprite):
         self.image = self.frames[0]
         self.rect = self.image.get_rect(center=vehicle.rect.center)
 
-        self.cooldown = 250  # ms
+        self.cooldown = 250  #Milisegundos de cooldown por disparo 
         self.last_shot = 0
 
 
@@ -250,7 +247,7 @@ class Turret(pygame.sprite.Sprite):
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, x, y, mouse_pos, group):
         super().__init__()
-        # 🔵 Visual más atractivo: círculo amarillo con borde
+        # 🔵 Círculo amarillo con borde
         self.image = pygame.Surface((12, 12), pygame.SRCALPHA)
         pygame.draw.circle(self.image, YELLOW, (6, 6), 6)
         pygame.draw.circle(self.image, (255, 200, 0), (6, 6), 6, 2)
@@ -406,7 +403,10 @@ def run_game(current_controls):
         for enemy in collisions:
             if vehicle.take_damage(): #generacion de la pantalla de game over
                 game_over_screen() 
+                running = False   #Romper el bucle para regresar al main
+                break
                 health_bar.update(vehicle.hp)#Conectar la barra con la vida actual del vehiculo
+
 
             
             # Calcular dirección de retroceso
@@ -440,7 +440,6 @@ def run_game(current_controls):
         
         pygame.display.flip()
 
-    pygame.quit()
 
 def main():
     global current_controls

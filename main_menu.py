@@ -11,24 +11,25 @@ class MainMenu:
         self.selected_option = 0
         self.running = True
         self.menu_start_y = 290
-        
-        
-        #Inicializar los sonidos
-        pygame.mixer.init()
 
-        #Música del menu
+        pygame.mixer.init() 
+
         try:
-            pygame.mixer.music.load("Sound/MUSIC_Menu.mp3")
-            pygame.mixer.music.set_volume(0.5)  #Configurar volumen de 0.1 hasta 1.0
-            pygame.mixer.music.play(-1)  #loopearlo 
+            pygame.mixer.music.load("Sound/MUSIC_Menu.mp3")#Musica
+            pygame.mixer.music.set_volume(0.5)
+            pygame.mixer.music.play(-1)
         except pygame.error:
             print("No se pudo cargar la música de fondo.")
 
-        #sonidos al seleccionar
         try:
-            self.buttonSound = pygame.mixer.Sound("Sound/SFX_Button.mp3")
+            self.buttonSound = pygame.mixer.Sound("Sound/SFX_Button.mp3")#Sonido de botones al moverse en el menu
         except pygame.error:
             self.buttonSound = None
+            
+        try:
+            self.confirmSound = pygame.mixer.Sound("Sound/SFX_Confirm.wav")#Sonido de seleccionar un boton
+        except pygame.error:
+            self.confirmSound = None
 
         try:
             self.background = pygame.image.load("image/Menu_BKG.jpg").convert()
@@ -36,16 +37,7 @@ class MainMenu:
         except pygame.error:
             self.background = None
 
-
-        try:
-            self.background = pygame.image.load("image/Menu_BKG.jpg").convert()
-            self.background = pygame.transform.scale(self.background, self.screen.get_size())
-        except pygame.error:
-            self.background = None
-
-
-
-    def render_text(self, text, color, x, y):
+    def render_text(self, text, color, x, y):#Sombreado del texto
         shadow = self.font.render(text, True, (0, 0, 0))
         self.screen.blit(shadow, (x+2, y+2))
         text_surface = self.font.render(text, True, color)
@@ -64,7 +56,7 @@ class MainMenu:
         else:
             self.screen.fill((0, 0, 0))
 
-        try:
+        try:#Carga del logo del juego,si no funciona se muestra solo un texto
             logo = pygame.image.load("image/title.png")
             logo = pygame.transform.scale_by(logo, 0.25)
             logo_x = self.screen.get_width() // 2 - logo.get_width() // 2
@@ -93,20 +85,19 @@ class MainMenu:
         pygame.display.flip()
 
     def countdown_exit(self):
-        """Muestra una cuenta regresiva antes de cerrar el juego"""
-        for i in range(3, 0, -1):  # 3, 2, 1
+        for i in range(3, 0, -1):
             if self.background:
                 self.screen.blit(self.background, (0, 0))
             else:
                 self.screen.fill((0, 0, 0))
 
-            text = self.font.render(f"Saliendo en {i}...", True, (255, 0, 0))
+            text = self.font.render(f"Saliendo en {i}...", True, (255, 0, 0))#Pantalla de carga al salir del juego
             x = self.screen.get_width()//2 - text.get_width()//2
             y = self.screen.get_height()//2 - text.get_height()//2
             self.screen.blit(text, (x, y))
 
             pygame.display.flip()
-            pygame.time.delay(1000)  # espera 1 segundo
+            pygame.time.delay(1000)
 
         pygame.quit()
         sys.exit()
@@ -122,9 +113,17 @@ class MainMenu:
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_UP:
                         self.selected_option = (self.selected_option - 1) % len(self.options)
+                        if self.buttonSound:   #reproducir sonido
+                            
+                            self.buttonSound.play()
                     elif event.key == pygame.K_DOWN:
                         self.selected_option = (self.selected_option + 1) % len(self.options)
+                        if self.buttonSound:   #reproducir sonidos
+                            
+                           self.buttonSound.play()
                     elif event.key == pygame.K_RETURN:
+                        if self.confirmSound:
+                           self.confirmSound.play()
                         choice = self.options[self.selected_option].lower()
                         if choice == "salir":
                             self.countdown_exit()

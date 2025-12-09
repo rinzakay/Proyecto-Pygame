@@ -19,7 +19,7 @@ NO_KEYS = {
     pygame.K_PAGEUP,                    #Re Pagina
     pygame.K_PAGEDOWN,                  #Av Pagina
     
-    #Todas las teclas de funcion
+    #Todas las teclas de funcion (Desde F1 a F12)
     pygame.K_F1, pygame.K_F2, pygame.K_F3, pygame.K_F4,
     pygame.K_F5, pygame.K_F6, pygame.K_F7, pygame.K_F8,
     pygame.K_F9, pygame.K_F10, pygame.K_F11, pygame.K_F12,
