@@ -2,26 +2,26 @@ import pygame
 import math
 import random
 
-# Importar los menús desde archivos separados
+#Importar los menús desde archivos separados
 from main_menu import MainMenu
 from settings import SettingsMenu
 
-# =====================================
-#          CONFIGURACIÓN
-# =====================================
+#==============================
+#       CONFIGURACIÓN
 WIDTH, HEIGHT = 1000, 600
 FPS = 60
-ENEMY_SPAWN_RATE = 3500  # Milisegundos entre aparición de enemigos
+ENEMY_SPAWN_RATE = 3500  #Milisegundos entre aparición de enemigos
 
-# Colores
+#Colores
 GRAY = (120, 120, 120)
-GREEN = (0, 200, 0)  # Color de respaldo si la imagen no carga
+GREEN = (0, 200, 0)  #Color de respaldo si la imagen no carga
 YELLOW = (255, 220, 0)
 RED = (255, 80, 80)
 
 COLOR_HIT = (255, 80, 80)
 BACKGROUND_COLOR = (20, 20, 20)
 
+"""carga de recursos (fondo,logo e iconos)"""
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Run & Gun Vehicular")
@@ -31,9 +31,16 @@ background_image = pygame.image.load("image/spotlight.png").convert()
 background_image = pygame.transform.scale(background_image, (WIDTH, HEIGHT)) #Fondo adaptado al tamaño exacto de pantalla
 clock = pygame.time.Clock()
 
+"""Carga de recursos (Enemigo y sus animaciones)"""
+try:
+    SPRITE_ENEMY = pygame.image.load("image/Enemy_SingleSprite.png").convert_alpha()
+except Exception as e:
+    print(f"[ERROR] No se pudo cargar enemy.png: {e}")
+    SPRITE_ENEMY = pygame.Surface((50, 50))
+    SPRITE_ENEMY.fill((128, 128, 128))  #Cuadrado gris 
 
-
-# --- Carga de Sprites del Coche ---
+        
+"""carga de recursos (vehiculo)"""
 try:
     SPRITE_SHEET_IMAGE = pygame.image.load('image/SpriteAuto.png').convert_alpha()
 except pygame.error as e:
@@ -41,12 +48,13 @@ except pygame.error as e:
     SPRITE_SHEET_IMAGE = pygame.Surface((192, 192), pygame.SRCALPHA)
     SPRITE_SHEET_IMAGE.fill(GREEN)
 
-# Dimensiones y margen entre fotogramas del coche
+
+#Dimensiones y margen entre fotogramas del coche
 FRAME_WIDTH = 125
 FRAME_HEIGHT = 80
-MARGIN = 1  # Ajusta si hay espacio entre fotogramas
+MARGIN = 1  #Ajusta si hay espacio entre fotogramas
 
-excluded_frames = [9, 10, 11]  # Índices de fotogramas a excluir
+excluded_frames = [9, 10, 11]  #Índices de fotogramas a excluir
 
 CAR_ANIMATION_FRAMES = []
 
@@ -61,13 +69,13 @@ for row in range(4):
         frame_image = SPRITE_SHEET_IMAGE.subsurface(frame_rect).copy()
         CAR_ANIMATION_FRAMES.append(frame_image)
 
-# --- Carga del sprite sheet de la torreta 24 posiciones ---
+"""Carga de recursos (torreta con animacion de rotacion;Sprite Sheet)"""
 try:
     TURRET_SPRITESHEET = pygame.image.load('image/turret_24.png').convert_alpha()
 except pygame.error as e:
     print(f"Advertencia: No se pudo cargar 'image/turret_24.png'. Usando superficie de respaldo. Error: {e}")
     TURRET_SPRITESHEET = pygame.Surface((512, 192), pygame.SRCALPHA)
-    TURRET_SPRITESHEET.fill((0, 0, 0, 0))  # Transparente
+    TURRET_SPRITESHEET.fill((0, 0, 0, 0))  #Transparente
 
 sheet_width = TURRET_SPRITESHEET.get_width()
 sheet_height = TURRET_SPRITESHEET.get_height()
@@ -87,7 +95,7 @@ for row in range(TURRET_ROWS):
         frame_image = TURRET_SPRITESHEET.subsurface(frame_rect).copy()
         TURRET_FRAMES.append(frame_image)
 
-# Clases del juego
+#Clases del juego
 
 class Vehicle(pygame.sprite.Sprite):
     def __init__(self, x, y):
@@ -96,15 +104,28 @@ class Vehicle(pygame.sprite.Sprite):
         self.current_frame_index = 0
         self.image = self.animation_frames[self.current_frame_index]
         self.rect = self.image.get_rect(midbottom=(x, y))
-
         self.speed = 5
         self.vel_x = 0
 
-        self.animation_speed = 0.1  # segundos por fotograma
+        self.animation_speed = 0.1  #segundos por fotograma
         self.last_frame_update = pygame.time.get_ticks()
         
         self.max_hp = 4
         self.hp = self.max_hp
+        
+        self.hit_cooldown = 500  #ms sin recibir daño tras un impacto
+        self.last_hit_time = 0
+
+    def can_take_damage(self):
+        return pygame.time.get_ticks() - self.last_hit_time >= self.hit_cooldown
+
+    def take_damage(self, all_sprites):
+        self.hp -= 1
+        self.is_hit = True
+        self.hit_time = pygame.time.get_ticks()
+
+        if self.hp <= 0:
+            self.kill()  #Eliminacion de enemigo
 
 
     def update(self, keys):
@@ -146,20 +167,20 @@ class HealthBar(pygame.sprite.Sprite):
         self.max_hp = max_hp
         self.hp = max_hp
 
-        # Dimensiones de la barra
+        #Dimensiones de la barra
         self.width = 120
         self.height = 25
 
-        # Colores según la vida
+        #Colores según la vida
         self.colors = [
-            (0, 255, 0),    # Verde → 4 vidas
-            (255, 165, 0),  # Naranja → 3 vidas
-            (255, 255, 0),  # Amarillo → 2 vidas
-            (255, 0, 0)     # Rojo → 1 vida
+            (0, 255, 0),    #Verde → 4 vidas
+            (255, 165, 0),  #Naranja → 3 vidas
+            (255, 255, 0),  #Amarillo → 2 vidas
+            (255, 0, 0)     #Rojo → 1 vida
         ]
         #Luego de la ultima vida, al perder todas se va a la pantalla de game over
 
-        # Imagen inicial
+        #Imagen inicial
         self.image = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         self.rect = self.image.get_rect(topleft=(x, y))
         self.update(self.hp)
@@ -178,19 +199,19 @@ class HealthBar(pygame.sprite.Sprite):
 
         #color según la vida (se crean sprites en el mismo programa) 
         if ratio > 0.75:
-            color = self.colors[0]  # verde
+            color = self.colors[0]  #verde
         elif ratio > 0.5:
-            color = self.colors[1]  # naranja
+            color = self.colors[1]  #naranja
         elif ratio > 0.25:
-            color = self.colors[2]  # amarillo
+            color = self.colors[2]  #amarillo
         else:
-            color = self.colors[3]  # rojo
+            color = self.colors[3]  #rojo
 
-        # Dibujar barra
-        self.image.fill((0, 0, 0, 0))  # limpiar transparente
-        pygame.draw.rect(self.image, (50, 50, 50), (0, 0, self.width, self.height), border_radius=5)  # fondo gris
-        pygame.draw.rect(self.image, color, (0, 0, int(self.width * ratio), self.height), border_radius=5)  # vida
-        pygame.draw.rect(self.image, (255, 255, 255), (0, 0, self.width, self.height), 2, border_radius=5)  # borde blanco
+        #Dibujar barra
+        self.image.fill((0, 0, 0, 0))  #limpiar transparente
+        pygame.draw.rect(self.image, (50, 50, 50), (0, 0, self.width, self.height), border_radius=5)  #fondo gris
+        pygame.draw.rect(self.image, color, (0, 0, int(self.width * ratio), self.height), border_radius=5)  #vida
+        pygame.draw.rect(self.image, (255, 255, 255), (0, 0, self.width, self.height), 2, border_radius=5)  #borde blanco
 
 
 
@@ -204,7 +225,7 @@ def game_over_screen():
     screen.blit(text, rect)
     pygame.display.flip()
 
-    # Esperar unos segundos antes de salir
+    #Esperar unos segundos antes de salir
     pygame.time.delay(3000)
     return
 
@@ -223,7 +244,7 @@ class Turret(pygame.sprite.Sprite):
 
         self.cooldown = 250  #Milisegundos de cooldown por disparo 
         self.last_shot = 0
-
+        self.direction = 1
 
     def update(self, mouse_pos):
         fixed_center = (self.vehicle.rect.centerx, self.vehicle.rect.top - 10)
@@ -235,6 +256,11 @@ class Turret(pygame.sprite.Sprite):
         self.image = self.frames[frame_index]
         self.rect = self.image.get_rect(center=fixed_center)
 
+        if self.vehicle.vel_x < 0:
+            self.direction = -1
+        elif self.vehicle.vel_x > 0:
+            self.direction = 1
+
         
     def shoot(self, mouse_pos):
         now = pygame.time.get_ticks()
@@ -242,12 +268,19 @@ class Turret(pygame.sprite.Sprite):
             bullet = Bullet(self.rect.centerx, self.rect.centery, mouse_pos, self.bullets_group)
             self.all_sprites_group.add(bullet)
             self.last_shot = now
+    def shoot_linear(self):
+        now = pygame.time.get_ticks()
+        if now - self.last_shot >= 80:  #metralleta rápida
+            bullet = LinearBullet(self.rect.centerx, self.rect.centery, self.direction, self.bullets_group)
+            self.all_sprites_group.add(bullet)
+            self.last_shot = now
 
 
+#Disparo dirigido (uso del mouse)
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, x, y, mouse_pos, group):
         super().__init__()
-        # 🔵 Círculo amarillo con borde
+        #Círculo amarillo con borde
         self.image = pygame.Surface((12, 12), pygame.SRCALPHA)
         pygame.draw.circle(self.image, YELLOW, (6, 6), 6)
         pygame.draw.circle(self.image, (255, 200, 0), (6, 6), 6, 2)
@@ -260,7 +293,7 @@ class Bullet(pygame.sprite.Sprite):
         self.vel_x = math.cos(ang) * self.speed
         self.vel_y = math.sin(ang) * self.speed
 
-        self.lifetime = 2000  # ms
+        self.lifetime = 2000  #ms
         self.spawn_time = pygame.time.get_ticks()
 
         group.add(self)
@@ -273,29 +306,246 @@ class Bullet(pygame.sprite.Sprite):
         if not screen.get_rect().colliderect(self.rect):
             self.kill()
 
+
+#Disparo lineal tipo metralleta
+class LinearBullet(pygame.sprite.Sprite):
+    def __init__(self, x, y, direction, group):
+        super().__init__()
+
+        self.image = pygame.Surface((14, 6), pygame.SRCALPHA)
+        pygame.draw.rect(self.image, (255, 80, 80), (0, 0, 14, 6))
+        self.rect = self.image.get_rect(center=(x, y))
+
+        self.speed = 18
+        self.vel_x = self.speed * direction  #izquierda o derecha
+
+        group.add(self)
+
+    def update(self):
+        self.rect.x += self.vel_x
+
+        if not screen.get_rect().colliderect(self.rect):
+            self.kill()
+
+
+
 #hacer el efecto para cuando el enemigo recibe daño
 def lerp_color(c1, c2, t):
-    """Interpolación lineal entre dos colores (c1 → c2) según factor t [0..1]."""
+    """Interpolación lineal entre dos colores (c1 → c2) aumentando por 0.1."""
     return (
         int(c1[0] + (c2[0] - c1[0]) * t),
         int(c1[1] + (c2[1] - c1[1]) * t),
         int(c1[2] + (c2[2] - c1[2]) * t),
     )
 
+
+class Vehicle(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.animation_frames = CAR_ANIMATION_FRAMES
+        self.current_frame_index = 0
+        self.image = self.animation_frames[self.current_frame_index]
+        self.rect = self.image.get_rect(midbottom=(x, y))
+        self.speed = 5
+        self.vel_x = 0
+
+        self.animation_speed = 0.1  #segundos por fotograma
+        self.last_frame_update = pygame.time.get_ticks()
+        
+        self.max_hp = 4
+        self.hp = self.max_hp
+        
+        self.hit_cooldown = 500  #ms sin recibir daño tras un impacto
+        self.last_hit_time = 0
+
+        #Punto exacto del cañón del vehículo (AJUSTABLE)
+        #Ajusta estos valores según tu sprite pixel art
+        self.fire_offset = pygame.Vector2(25, -35)
+
+        #Visual de daño / estado de impacto
+        self.is_hit = False
+        self.hit_time = 0
+        self.hit_duration = 200  #ms para parpadeo del coche
+
+    def can_take_damage(self):
+        return pygame.time.get_ticks() - self.last_hit_time >= self.hit_cooldown
+
+    def take_damage(self):
+        #Funcion para restar vida
+        if not self.can_take_damage():
+            return False  #No recibe daño porque está en cooldown
+
+        self.hp -= 1
+        self.last_hit_time = pygame.time.get_ticks()
+        self.is_hit = True
+        self.hit_time = pygame.time.get_ticks()
+
+        if self.hp <= 0:
+            self.kill()  #Eliminacion de enemigo (en este caso, del vehículo)
+            return True  #El vehiculo se destrozo
+        return False
+
+    def update(self, keys):
+        global current_controls
+        
+        self.vel_x = 0
+        if keys[current_controls['Moverse a la izquierda']]:
+            self.vel_x = -self.speed
+        if keys[current_controls['Moverse a la derecha']]:
+            self.vel_x = self.speed
+
+        self.rect.x += self.vel_x
+
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+
+        now = pygame.time.get_ticks()
+        if self.vel_x != 0 and now - self.last_frame_update > self.animation_speed * 1000:
+            self.current_frame_index = (self.current_frame_index + 1) % len(self.animation_frames)
+            self.image = self.animation_frames[self.current_frame_index]
+            self.last_frame_update = now
+        elif self.vel_x == 0:
+            self.current_frame_index = 0
+            self.image = self.animation_frames[self.current_frame_index]
+
+        #Efecto visual de daño (simple parpadeo)
+        if self.is_hit:
+            elapsed = pygame.time.get_ticks() - self.hit_time
+            if elapsed < self.hit_duration:
+                #alternar visibilidad
+                if (elapsed // 50) % 2 == 0:
+                    self.image.set_alpha(150)
+                else:
+                    self.image.set_alpha(255)
+            else:
+                self.image.set_alpha(255)
+                self.is_hit = False
+
+
+class Turret(pygame.sprite.Sprite):
+    def __init__(self, vehicle, bullets_group, all_sprites_group):
+        super().__init__()
+        self.frames = TURRET_FRAMES
+        self.num_frames = len(self.frames)
+        self.vehicle = vehicle
+        self.bullets_group = bullets_group
+        self.all_sprites_group = all_sprites_group
+
+        self.image = self.frames[0]
+        self.rect = self.image.get_rect(center=vehicle.rect.center)
+
+        self.cooldown = 250  #Milisegundos de cooldown por disparo 
+        self.last_shot = 0
+        self.direction = 1
+
+    def update(self, mouse_pos):
+        fixed_center = (self.vehicle.rect.centerx, self.vehicle.rect.top - 10)
+
+        dx, dy = mouse_pos[0] - fixed_center[0], mouse_pos[1] - fixed_center[1]
+        angle = math.degrees(math.atan2(-dy, dx)) % 360 if (dx or dy) else 0
+
+        frame_index = int((angle / 360) * self.num_frames) % self.num_frames
+        self.image = self.frames[frame_index]
+        self.rect = self.image.get_rect(center=fixed_center)
+
+        if self.vehicle.vel_x < 0:
+            self.direction = -1
+        elif self.vehicle.vel_x > 0:
+            self.direction = 1
+
+    def shoot(self, mouse_pos):
+        now = pygame.time.get_ticks()
+        if now - self.last_shot >= self.cooldown:
+            bullet = Bullet(self.rect.centerx, self.rect.centery, mouse_pos, self.bullets_group)
+            self.all_sprites_group.add(bullet)
+            self.last_shot = now
+
+    def shoot_linear(self):
+        now = pygame.time.get_ticks()
+        if now - self.last_shot >= 80:  #metralleta rápida
+
+            #Calcular punto exacto del cañón del vehículo
+            fire_x = self.vehicle.rect.centerx + self.vehicle.fire_offset.x * self.direction
+            fire_y = self.vehicle.rect.centery + self.vehicle.fire_offset.y
+
+            bullet = LinearBullet(fire_x, fire_y, self.direction, self.bullets_group)
+            self.all_sprites_group.add(bullet)
+            self.last_shot = now
+
+
+#Disparo dirigido (uso del mouse)
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, x, y, mouse_pos, group):
+        super().__init__()
+        #Círculo amarillo con borde
+        self.image = pygame.Surface((12, 12), pygame.SRCALPHA)
+        pygame.draw.circle(self.image, YELLOW, (6, 6), 6)
+        pygame.draw.circle(self.image, (255, 200, 0), (6, 6), 6, 2)
+        self.rect = self.image.get_rect(center=(x, y))
+
+        dx, dy = mouse_pos[0] - x, mouse_pos[1] - y
+        ang = math.atan2(dy, dx)
+
+        self.speed = 14
+        self.vel_x = math.cos(ang) * self.speed
+        self.vel_y = math.sin(ang) * self.speed
+
+        self.lifetime = 2000  #ms
+        self.spawn_time = pygame.time.get_ticks()
+
+        group.add(self)
+        
+    def update(self):
+        self.rect.x += self.vel_x
+        self.rect.y += self.vel_y
+
+        #Se puede usar lifetime si quieres:
+        if pygame.time.get_ticks() - self.spawn_time > self.lifetime:
+            self.kill()
+            return
+
+        if not screen.get_rect().colliderect(self.rect):
+            self.kill()
+
+
+#Disparo lineal tipo metralleta
+class LinearBullet(pygame.sprite.Sprite):
+    def __init__(self, x, y, direction, group):
+        super().__init__()
+
+        self.image = pygame.Surface((14, 6), pygame.SRCALPHA)
+        pygame.draw.rect(self.image, (255, 80, 80), (0, 0, 14, 6))
+        self.rect = self.image.get_rect(center=(x, y))
+
+        self.speed = 18
+        self.vel_x = self.speed * direction  #izquierda o derecha
+
+        group.add(self)
+
+    def update(self):
+        self.rect.x += self.vel_x
+
+        if not screen.get_rect().colliderect(self.rect):
+            self.kill()
+
+
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
-        self.image = pygame.Surface((50, 50))
-        self.image.fill(GRAY)
+        #guardar una copia base
+        self.base_image = pygame.transform.scale(SPRITE_ENEMY, (90, 80))
+        self.image = self.base_image.copy()
         self.rect = self.image.get_rect(midbottom=(x, y))
 
         self.hp = 3
         self.speed = 2
         self.direction = 1
 
-      #Visualizador de daño
+        #Visualizador de daño
         self.is_hit = False
-        self.hit_duration = 350  #Duracion del efecto de daño
+        self.hit_duration = 350
         self.hit_time = 0
 
     def update(self):
@@ -307,30 +557,29 @@ class Enemy(pygame.sprite.Sprite):
                 self.rect.left = 100
             if self.rect.right > WIDTH - 100:
                 self.rect.right = WIDTH - 100
-                
+
+        #Efecto de daño (parpadeo)
         if self.is_hit:
             elapsed = pygame.time.get_ticks() - self.hit_time
             if elapsed < self.hit_duration:
                 t = elapsed / self.hit_duration
-                new_color = lerp_color(COLOR_HIT, GRAY, t)
-                self.image.fill(new_color)
+                new_color = lerp_color(COLOR_HIT, (255, 255, 255), t)
+                #copiar SIEMPRE desde base_image
+                tinted = self.base_image.copy()
+                tinted.fill(new_color, special_flags=pygame.BLEND_RGBA_MULT)
+                self.image = tinted
             else:
-                self.image.fill(GRAY)
+                self.image = self.base_image.copy()
                 self.is_hit = False
 
-
-
-
-    def take_damage(self):
+    def take_damage(self, all_sprites):
         self.hp -= 1
-    
         self.is_hit = True
         self.hit_time = pygame.time.get_ticks()
-        self.image.fill(COLOR_HIT)
-
 
         if self.hp <= 0:
-            self.kill()
+            self.kill()  #El enemigo muere correctamente
+
 
 def run_game(current_controls):
     running = True
@@ -349,7 +598,6 @@ def run_game(current_controls):
     all_sprites.add(health_bar)
     health_bar.update(vehicle.hp)
 
-
     enemy1 = Enemy(WIDTH - 100, HEIGHT - 20)
     enemies.add(enemy1)
     all_sprites.add(enemy1)
@@ -363,10 +611,12 @@ def run_game(current_controls):
             if event.type == pygame.QUIT:
                 running = False
 
+            #Disparo dirigido con click izquierdo
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     turret.shoot(pygame.mouse.get_pos())
 
+            #ESCAPE abre el menu
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     menu = SettingsMenu(screen, current_controls)
@@ -374,6 +624,10 @@ def run_game(current_controls):
                     if updated_controls:
                         current_controls.update(updated_controls)
 
+                #disparo lineal con la tecla configurada
+                if event.key == current_controls["Disparo Lineal"]:
+                    turret.shoot_linear()
+                
         now = pygame.time.get_ticks()
         if now - last_enemy_spawn >= ENEMY_SPAWN_RATE:
             side = random.choice(["left", "right"])
@@ -396,21 +650,19 @@ def run_game(current_controls):
         enemies.update()
         health_bar.update(vehicle.hp)
         
-    
-        
         #Colisión entre vehículo y enemigos
         collisions = pygame.sprite.spritecollide(vehicle, enemies, False)
         for enemy in collisions:
-            if vehicle.take_damage(): #generacion de la pantalla de game over
-                game_over_screen() 
-                running = False   #Romper el bucle para regresar al main
+            destroyed = vehicle.take_damage()   #Reducir vida con cooldown
+            health_bar.update(vehicle.hp)  #Actualizar barra
+
+            if destroyed:     #Si la vida llega a 0
+                game_over_screen()
+                running = False
                 break
-                health_bar.update(vehicle.hp)#Conectar la barra con la vida actual del vehiculo
-
-
             
-            # Calcular dirección de retroceso
-            # si el enemigo choca de un lado,el vehiculo retrocede en direccion opuesta,y viceversa
+            #Calcular dirección de retroceso
+            #si el enemigo choca de un lado,el vehiculo retrocede en direccion opuesta,y viceversa
             if vehicle.rect.centerx < enemy.rect.centerx:
                 vehicle.rect.x -= 45
                 enemy.rect.x += 45
@@ -418,7 +670,7 @@ def run_game(current_controls):
                 vehicle.rect.x += 45
                 enemy.rect.x -= 45
 
-            # Evitar que se salgan de la pantalla
+            #Evitar que se salgan de la pantalla
             if vehicle.rect.left < 0:
                 vehicle.rect.left = 0
             if vehicle.rect.right > WIDTH:
@@ -428,11 +680,11 @@ def run_game(current_controls):
             if enemy.rect.right > WIDTH - 100:
                 enemy.rect.right = WIDTH - 100        
         
-
+        #Colisión balas vs enemigos
         hits = pygame.sprite.groupcollide(bullets, enemies, True, False)
         for bullet_hit, enemy_list in hits.items():
             for enemy in enemy_list:
-                enemy.take_damage()
+                enemy.take_damage(all_sprites)
 
         screen.fill(BACKGROUND_COLOR)
         screen.blit(background_image, (0, 0))
@@ -444,9 +696,9 @@ def run_game(current_controls):
 def main():
     global current_controls
     current_controls = {
-        'Moverse a la izquierda': pygame.K_a,
-        'Moverse a la derecha': pygame.K_d,
-        'Disparo': pygame.K_SPACE,
+        "Moverse a la izquierda": pygame.K_a,
+        "Moverse a la derecha": pygame.K_d,
+        "Disparo Lineal": pygame.K_SPACE,
     }
 
     menu = MainMenu(screen)
@@ -463,6 +715,7 @@ def main():
             run_game(current_controls)
 
     pygame.quit()
+
 
 if __name__ == "__main__":
     main()
